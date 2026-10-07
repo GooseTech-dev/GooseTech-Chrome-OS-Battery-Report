@@ -1,0 +1,11 @@
+# Local exports, configuration, and credentials
+*.csv
+*.xlsx
+*.xls
+GAMConfig/
+GAMWork/
+*oauth2*
+*client_secrets*
+service-account*.json
+gam.cfg
+gamcache/
