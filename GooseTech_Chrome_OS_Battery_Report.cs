@@ -34,10 +34,14 @@ namespace BatteryReportApp
         private readonly Label totalLabel = new Label();
         private readonly Dictionary<string, Label> metricValues = new Dictionary<string, Label>();
         private string telemetryCsvPath, inventoryCsvPath;
+        private bool autoDetectCsvSources;
+        private readonly string sourcePathsFile;
 
         public ReportForm(string path)
         {
             workbookPath = path;
+            sourcePathsFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "BatteryReport.sources");
+            LoadSourcePaths();
             Text = "GooseTech Chrome OS Battery Report";
             StartPosition = FormStartPosition.CenterScreen;
             MinimumSize = new Size(1120, 700);
@@ -46,6 +50,43 @@ namespace BatteryReportApp
             Font = new Font("Segoe UI", 9F);
             BuildLayout();
             Shown += delegate { if (File.Exists(workbookPath)) RefreshReport(); else ImportExports(); };
+        }
+
+        private void LoadSourcePaths()
+        {
+            if (File.Exists(sourcePathsFile))
+            {
+                string[] paths = File.ReadAllLines(sourcePathsFile);
+                if (paths.Length >= 2 && File.Exists(paths[0]) && File.Exists(paths[1]))
+                {
+                    telemetryCsvPath = paths[0]; inventoryCsvPath = paths[1];
+                    return;
+                }
+            }
+
+            string appDirectory = AppDomain.CurrentDomain.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            string parentDirectory = Directory.GetParent(appDirectory) == null ? appDirectory : Directory.GetParent(appDirectory).FullName;
+            string workDirectory = Path.Combine(parentDirectory, "work");
+            string inventory = Path.Combine(workDirectory, "fleet_inventory.csv");
+            string telemetry = FindLatestTelemetryCsv(workDirectory);
+            if (File.Exists(inventory) && File.Exists(telemetry))
+            {
+                inventoryCsvPath = inventory; telemetryCsvPath = telemetry; autoDetectCsvSources = true;
+            }
+        }
+
+        private static string FindLatestTelemetryCsv(string directory)
+        {
+            if (!Directory.Exists(directory)) return null;
+            return Directory.GetFiles(directory, "fleet_crosstelemetry*.csv")
+                .Where(file => new FileInfo(file).Length > 0)
+                .OrderByDescending(File.GetLastWriteTimeUtc)
+                .FirstOrDefault();
+        }
+
+        private void SaveSourcePaths()
+        {
+            File.WriteAllLines(sourcePathsFile, new[] { telemetryCsvPath ?? "", inventoryCsvPath ?? "" });
         }
 
         private void BuildLayout()
@@ -301,6 +342,8 @@ namespace BatteryReportApp
                 if (dialog.ShowDialog(this) != DialogResult.OK) return;
                 inventoryCsvPath = dialog.FileName;
             }
+            autoDetectCsvSources = false;
+            SaveSourcePaths();
             RefreshReport();
         }
 
@@ -308,8 +351,15 @@ namespace BatteryReportApp
         {
             try
             {
-                Cursor = Cursors.WaitCursor; status.Text = "Reading the latest saved report…"; Refresh();
-                devices.Clear(); devices.AddRange(!String.IsNullOrWhiteSpace(telemetryCsvPath) && !String.IsNullOrWhiteSpace(inventoryCsvPath) ? ReadCsvExports() : ReadWorkbook());
+                Cursor = Cursors.WaitCursor;
+                if (autoDetectCsvSources)
+                {
+                    string latestTelemetry = FindLatestTelemetryCsv(Path.GetDirectoryName(telemetryCsvPath));
+                    if (!String.IsNullOrWhiteSpace(latestTelemetry)) telemetryCsvPath = latestTelemetry;
+                }
+                bool hasCsvSources = !String.IsNullOrWhiteSpace(telemetryCsvPath) && File.Exists(telemetryCsvPath) && !String.IsNullOrWhiteSpace(inventoryCsvPath) && File.Exists(inventoryCsvPath);
+                status.Text = hasCsvSources ? "Reading the latest telemetry and inventory CSVs…" : "Reading the latest saved report…"; Refresh();
+                devices.Clear(); devices.AddRange(hasCsvSources ? ReadCsvExports() : ReadWorkbook());
                 foreach (var key in metricValues.Keys) metricValues[key].Text = devices.Count(d => d.Health == key).ToString(CultureInfo.CurrentCulture);
                 totalLabel.Text = devices.Count.ToString(CultureInfo.CurrentCulture) + " devices in this snapshot";
                 string previous = ouFilter.SelectedItem == null ? "All organizational units" : ouFilter.SelectedItem.ToString();
@@ -350,7 +400,10 @@ namespace BatteryReportApp
             grid.Columns["Health"].FillWeight = 65; grid.Columns["Chromebook serial"].FillWeight = 105; grid.Columns["Most recent user"].FillWeight = 155;
             grid.Columns["Make / model"].FillWeight = 145; grid.Columns["Organizational unit"].FillWeight = 165; grid.Columns["Battery health"].FillWeight = 85;
             grid.Columns["Cycle count"].FillWeight = 65; grid.Columns["Last report (UTC)"].FillWeight = 115;
-            status.Text = "Showing " + table.Rows.Count.ToString(CultureInfo.CurrentCulture) + " of " + devices.Count.ToString(CultureInfo.CurrentCulture) + " devices  •  Click a column heading to sort";
+            string refreshedAt = !String.IsNullOrWhiteSpace(telemetryCsvPath) && File.Exists(telemetryCsvPath)
+                ? "  •  Telemetry CSV updated " + File.GetLastWriteTime(telemetryCsvPath).ToString("g", CultureInfo.CurrentCulture)
+                : "";
+            status.Text = "Showing " + table.Rows.Count.ToString(CultureInfo.CurrentCulture) + " of " + devices.Count.ToString(CultureInfo.CurrentCulture) + " devices  •  Click a column heading to sort" + refreshedAt;
         }
 
         private void FormatHealthCell(object sender, DataGridViewCellFormattingEventArgs e)
@@ -378,4 +431,3 @@ namespace BatteryReportApp
         }
     }
 }
-

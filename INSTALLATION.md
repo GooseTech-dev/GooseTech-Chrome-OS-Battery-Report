@@ -116,13 +116,15 @@ The report joins telemetry with inventory fields such as device ID, serial numbe
 
 ### 10. Open the report and choose the exports
 
-Double-click `GooseTech_Chrome_OS_Battery_Report.exe`, then select **Import CSVs**. Choose the GAM telemetry CSV and then the Admin Console inventory CSV. The file dialogs allow you to select files from any folders. The app sorts battery health from worst to best, with devices missing telemetry at the bottom, and supports search/filtering and sorting controls. Demo CSVs are included if you want to inspect the display before using school data.
+Double-click `GooseTech_Chrome_OS_Battery_Report.exe`, then select **Import CSVs**. Choose the GAM telemetry CSV and then the Admin Console inventory CSV. The file dialogs allow you to select files from any folders. The app remembers the selected file paths on that Windows computer, sorts battery health from worst to best with devices missing telemetry at the bottom, and supports search, filters, and sorting controls. Demo CSVs are included if you want to inspect the display before using school data.
 
 If the app reports missing columns, check that you exported the complete telemetry and device inventory CSVs. Do not rename the source headers.
 
 ### 11. Refresh the report later
 
-Run `GooseTech_Export_Telemetry.bat` again and choose the same or a new destination folder. Export a fresh device inventory CSV from Admin Console, then import both current CSVs in the app. The package does not schedule exports or create a new report file on a timer; each school chooses where to save and when to refresh.
+Run `GooseTech_Export_Telemetry.bat` again and save the telemetry CSV to the same path you imported earlier. Return to the app and click **Refresh**; it rereads the saved CSV paths and shows the telemetry file’s last-modified time. The app does not run GAM or schedule exports itself. A daily scheduled export can feed the app if it replaces the same telemetry CSV file; the export must finish before you click **Refresh**. If the export path changes, or you choose a different device inventory CSV, select **Import CSVs** again to update the saved paths. The app does not need a new inventory export every day if the existing inventory file remains current enough for your reporting needs.
+
+The package does not create a Windows Scheduled Task. The included `.bat` exporter prompts for paths and is intended for interactive use. For unattended scheduling, configure a school-approved task with a fixed GAM executable, GAM configuration folder, and telemetry CSV output path. Keep the authorization folder private and ensure the scheduled Windows account can read it and write to the export folder.
 
 ## Keep authorization and exports private
 
@@ -138,5 +140,3 @@ Never include `GAMConfig`, `oauth2.txt`, `client_secrets.json`, a service-accoun
 - Google [ChromeOS user and device reporting policies](https://support.google.com/chrome/a/answer/1375678?hl=en-to)
 
 This guide is an original, practical walkthrough of the package workflow. GAM and Google may change their screens and prompts; consult the official guides for current details.
-
-
